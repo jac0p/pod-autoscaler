@@ -23,5 +23,5 @@ package main
 import "jac0p/pod-autoscaler/cmd"
 
 func main() {
-	cmd.Execute()
+    cmd.Execute()
 }
