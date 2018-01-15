@@ -21,36 +21,62 @@
 package cmd
 
 import (
-	"fmt"
+    "fmt"
+    // "os"
 
-	"github.com/spf13/cobra"
+    "github.com/spf13/cobra"
+    "github.com/go-redis/redis"
 )
 
 // manageCmd represents the manage command
 var manageCmd = &cobra.Command{
-	Use:   "manage",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+    Use:   "manage",
+    Short: "Manages number of pod replicas based on queue size",
+    Long: `Manages the number of pod replicas based on Redis queue utilisation.
+Thresholds are taken from environment variables: 
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("manage called")
-	},
+POD_REPLICA_MIN:         3
+POD_REPLICA_MAX:        10
+REDIS_TASK_MULTIPLIER:   5    (start a pod after every 5 tasks)
+AUTOSCALER_FREQUENCY:   30    (check queue size every 30 seconds) 
+
+Example:
+./pod-autoscaler manage 
+`,
+    Run: func(cmd *cobra.Command, args []string) {
+        fmt.Println("manage called")
+        Example()
+    },
 }
 
 func init() {
-	rootCmd.AddCommand(manageCmd)
+    rootCmd.AddCommand(manageCmd)
 
-	// Here you will define your flags and configuration settings.
+    // manageCmd.PersistentFlags().String("foo", "", "A help for foo")
+    // manageCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// manageCmd.PersistentFlags().String("foo", "", "A help for foo")
+func Example() {
+    client := redis.NewClient(&redis.Options{
+        Addr:     "localhost:6379",
+        Password: "", // no password set
+        DB:       3,
+    })
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// manageCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+    // pong, err := client.Ping().Result()
+    // fmt.Println(pong, err)
+    // Output: PONG <nil>
+
+    queues, err := client.Keys("resque:webadmit:queue:*").Result()
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println(queues)
+
+    for _, q := range queues {
+        fmt.Println(q)
+        qs := client.LLen(q)
+        fmt.Printf("%v\n", qs)
+    }
 }
