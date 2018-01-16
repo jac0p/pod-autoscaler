@@ -21,62 +21,122 @@
 package cmd
 
 import (
-    "fmt"
-    // "os"
+    // "fmt"
+    "os"
+    "strconv"
 
     "github.com/spf13/cobra"
     "github.com/go-redis/redis"
+    log "github.com/sirupsen/logrus"
 )
 
-// manageCmd represents the manage command
 var manageCmd = &cobra.Command{
     Use:   "manage",
     Short: "Manages number of pod replicas based on queue size",
     Long: `Manages the number of pod replicas based on Redis queue utilisation.
 Thresholds are taken from environment variables: 
 
-POD_REPLICA_MIN:         3
-POD_REPLICA_MAX:        10
-REDIS_TASK_MULTIPLIER:   5    (start a pod after every 5 tasks)
-AUTOSCALER_FREQUENCY:   30    (check queue size every 30 seconds) 
+POD_REPLICA_MIN:                             3
+POD_REPLICA_MAX:                            10
+REDIS_ADDRESS:                  localhost:6379
+REDIS_PASS:                             secret
+REDIS_DB:                                    3
+REDIS_QUEUE:            my-awesome-redis-queue
+REDIS_TASK_MULTIPLIER:                       5 (start a pod after every 5 tasks)
+AUTOSCALER_FREQUENCY:                       30 (check queue size every 30 seconds) 
 
 Example:
 ./pod-autoscaler manage 
 `,
     Run: func(cmd *cobra.Command, args []string) {
-        fmt.Println("manage called")
-        Example()
+        log.Info("Executing manage command...")
+        Run()
     },
 }
 
-func init() {
-    rootCmd.AddCommand(manageCmd)
-
-    // manageCmd.PersistentFlags().String("foo", "", "A help for foo")
-    // manageCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+type Resource interface {
+    isOverwhelmed() bool
 }
 
-func Example() {
+type RedisQueue struct {
+    Addr, Password string
+    DB int
+}
+
+type EnvVars struct {
+    POD_REPLICA_MIN, POD_REPLICA_MAX int
+    REDIS_ADDRESS, REDIS_PASS, REDIS_QUEUE string
+    REDIS_TASK_MULTIPLIER, AUTOSCALER_FREQUENCY, REDIS_DB int
+}
+
+func (rq RedisQueue) isOverwhelmed(queue string) bool {
+    // move connect into other method later
     client := redis.NewClient(&redis.Options{
-        Addr:     "localhost:6379",
-        Password: "", // no password set
-        DB:       3,
+        Addr:     rq.Addr,
+        Password: rq.Password, // no password set
+        DB:       rq.DB,
     })
 
-    // pong, err := client.Ping().Result()
-    // fmt.Println(pong, err)
-    // Output: PONG <nil>
 
-    queues, err := client.Keys("resque:webadmit:queue:*").Result()
-    if err != nil {
-        panic(err)
+    // gets queue names
+    // queues, err := client.Keys("resque:app:queue:*").Result()
+    // if err != nil {
+    //     panic(err)
+    // }
+
+    // iterates those queues
+    // for _, q := range queues {
+    //     fmt.Println(q)
+    //     qs := client.LLen(q)
+    //     fmt.Printf("%v\n", qs)
+    // }
+
+    q := client.LLen(queue)
+    log.Info(q)
+
+    return true // for now FIXME
+}
+
+
+func init() {
+    rootCmd.AddCommand(manageCmd)
+}
+
+func confLogger() {
+    logFmt := new(log.TextFormatter)
+    // logFmt.TimestampFormat = "2018-01-15 00:00:00"   // FIXME
+    log.SetFormatter(logFmt)
+    logFmt.FullTimestamp = true
+}
+
+func getVars() EnvVars {
+    return EnvVars{
+        POD_REPLICA_MIN:        toInt(os.Getenv("POD_REPLICA_MIN")),
+        POD_REPLICA_MAX:        toInt(os.Getenv("POD_REPLICA_MAX")),
+        REDIS_ADDRESS:          os.Getenv("REDIS_ADDRESS"),
+        REDIS_PASS:             os.Getenv("REDIS_PASS"),
+        REDIS_DB:               toInt(os.Getenv("REDIS_DB")),
+        REDIS_QUEUE:            os.Getenv("REDIS_QUEUE"),
+        REDIS_TASK_MULTIPLIER:  toInt(os.Getenv("REDIS_TASK_MULTIPLIER")),
+        AUTOSCALER_FREQUENCY:   toInt(os.Getenv("AUTOSCALER_FREQUENCY")),
+    }
+}
+
+// helper func for easier parsing
+func toInt(s string) (int) {
+    i, _ := strconv.Atoi(s)
+    return i
+}
+
+func Run() {
+    confLogger()  // logrus config
+    envVars := getVars() // read K8S friendly environment variables
+
+    redis := RedisQueue {
+        Addr:     envVars.REDIS_ADDRESS,
+        Password: envVars.REDIS_PASS,
+        DB:       envVars.REDIS_DB,
     }
 
-    fmt.Println(queues)
-
-    for _, q := range queues {
-        fmt.Println(q)
-        qs := client.LLen(q)
-        fmt.Printf("%v\n", qs)
-    }
+    redis.isOverwhelmed()
 }
