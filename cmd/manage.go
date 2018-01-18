@@ -36,14 +36,23 @@ var manageCmd = &cobra.Command{
     Long: `Manages the number of pod replicas based on Redis queue utilisation.
 Thresholds are taken from environment variables: 
 
-POD_REPLICA_MIN:                             3
-POD_REPLICA_MAX:                            10
-REDIS_ADDRESS:                  localhost:6379
-REDIS_PASS:                             secret
-REDIS_DB:                                    3
-REDIS_QUEUE:            my-awesome-redis-queue
-REDIS_TASK_MULTIPLIER:                       5 (start a pod after every 5 tasks)
-AUTOSCALER_FREQUENCY:                       30 (check queue size every 30 seconds) 
+MIN_POD:		                              num
+MAX_POD:		                              num
+POD_INCREMENT:		                        num
+POD_DECREMENT:		                        num
+SCALE_UP_POLICY:		                      linear
+SCALE_DOWN_POLICY:		                    linear|onlyWhenNoneNeeded
+MONITOR_TYPE:		                          redis|haproxy
+MONITOR_USERNAME:		                      for haproxy
+MONITOR_PASSWORD:		                      for haproxy
+MONITOR_HOST:		                          some.address.com
+MONITOR_PORT:		                          6379
+MONITOR_PATH:		                          haproxy
+MONITOR_DB:		                            num (redis)
+MONITOR_QUEUE_NAME:		                    resque:app:name
+MONITOR_PODS:		
+MANAGE_SPEED:		                          rest time in seconds between each control loop
+
 
 Example:
 ./pod-autoscaler manage 
@@ -64,9 +73,10 @@ type RedisQueue struct {
 }
 
 type EnvVars struct {
-    POD_REPLICA_MIN, POD_REPLICA_MAX int
-    REDIS_ADDRESS, REDIS_PASS, REDIS_QUEUE string
-    REDIS_TASK_MULTIPLIER, AUTOSCALER_FREQUENCY, REDIS_DB int
+    MIN_POD, MAX_POD, POD_INCREMENT  int
+    POD_DECREMENT, MONITOR_PORT, MANAGE_SPEED, MONITOR_DB int
+    SCALE_UP_POLICY, SCALE_DOWN_POLICY, MONITOR_TYPE, MONITOR_USERNAME string
+    MONITOR_PASSWORD, MONITOR_HOST, MONITOR_PATH, MONITOR_QUEUE_NAME, MONITOR_PODS string
 }
 
 func (rq RedisQueue) isOverwhelmed(queue string) bool {
@@ -111,14 +121,22 @@ func confLogger() {
 
 func getVars() EnvVars {
     return EnvVars{
-        POD_REPLICA_MIN:        toInt(os.Getenv("POD_REPLICA_MIN")),
-        POD_REPLICA_MAX:        toInt(os.Getenv("POD_REPLICA_MAX")),
-        REDIS_ADDRESS:          os.Getenv("REDIS_ADDRESS"),
-        REDIS_PASS:             os.Getenv("REDIS_PASS"),
-        REDIS_DB:               toInt(os.Getenv("REDIS_DB")),
-        REDIS_QUEUE:            os.Getenv("REDIS_QUEUE"),
-        REDIS_TASK_MULTIPLIER:  toInt(os.Getenv("REDIS_TASK_MULTIPLIER")),
-        AUTOSCALER_FREQUENCY:   toInt(os.Getenv("AUTOSCALER_FREQUENCY")),
+        MIN_POD                 toInt(os.Getenv("MIN_POD")),
+        MAX_POD                 toInt(os.Getenv("MAX_POD")),
+        POD_INCREMENT           toInt(os.Getenv("POD_INCREMENT")),
+        POD_DECREMENT           toInt(os.Getenv("POD_DECREMENT")),
+        SCALE_UP_POLICY         os.Getenv("SCALE_UP_POLICY"),
+        SCALE_DOWN_POLICY       os.Getenv("SCALE_DOWN_POLICY"),
+        MONITOR_TYPE            os.Getenv("MONITOR_TYPE"),
+        MONITOR_USERNAME        os.Getenv("MONITOR_USERNAME"),
+        MONITOR_PASSWORD        os.Getenv("MONITOR_PASSWORD"),
+        MONITOR_HOST            os.Getenv("MONITOR_HOST"),
+        MONITOR_PORT            toInt(os.Getenv("MONITOR_PORT")),
+        MONITOR_PATH            os.Getenv("MONITOR_PATH"),
+        MONITOR_DB              toInt(os.Getenv("MONITOR_PORT")),
+        MONITOR_QUEUE_NAME      os.Getenv("MONITOR_QUEUE_NAME"),
+        MONITOR_PODS            os.Getenv("MONITOR_PODS"),
+        MANAGE_SPEED            toInt(os.Getenv("MANAGE_SPEED")),
     }
 }
 
@@ -133,9 +151,9 @@ func Run() {
     envVars := getVars() // read K8S friendly environment variables
 
     redis := RedisQueue {
-        Addr:     envVars.REDIS_ADDRESS,
-        Password: envVars.REDIS_PASS,
-        DB:       envVars.REDIS_DB,
+        Addr:     envVars.MONITOR_HOST,
+        Password: "",
+        DB:       envVars.MONITOR_DB,
     }
 
     redis.isOverwhelmed()
