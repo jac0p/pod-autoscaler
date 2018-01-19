@@ -115,28 +115,30 @@ func init() {
 func confLogger() {
     logFmt := new(log.TextFormatter)
     // logFmt.TimestampFormat = "2018-01-15 00:00:00"   // FIXME
-    log.SetFormatter(logFmt)
     logFmt.FullTimestamp = true
+    logFmt.TimestampFormat = ""
+    log.SetFormatter(logFmt)
+    // logFmt.FullTimestamp = true
 }
 
 func getVars() EnvVars {
     return EnvVars{
-        MIN_POD                 toInt(os.Getenv("MIN_POD")),
-        MAX_POD                 toInt(os.Getenv("MAX_POD")),
-        POD_INCREMENT           toInt(os.Getenv("POD_INCREMENT")),
-        POD_DECREMENT           toInt(os.Getenv("POD_DECREMENT")),
-        SCALE_UP_POLICY         os.Getenv("SCALE_UP_POLICY"),
-        SCALE_DOWN_POLICY       os.Getenv("SCALE_DOWN_POLICY"),
-        MONITOR_TYPE            os.Getenv("MONITOR_TYPE"),
-        MONITOR_USERNAME        os.Getenv("MONITOR_USERNAME"),
-        MONITOR_PASSWORD        os.Getenv("MONITOR_PASSWORD"),
-        MONITOR_HOST            os.Getenv("MONITOR_HOST"),
-        MONITOR_PORT            toInt(os.Getenv("MONITOR_PORT")),
-        MONITOR_PATH            os.Getenv("MONITOR_PATH"),
-        MONITOR_DB              toInt(os.Getenv("MONITOR_PORT")),
-        MONITOR_QUEUE_NAME      os.Getenv("MONITOR_QUEUE_NAME"),
-        MONITOR_PODS            os.Getenv("MONITOR_PODS"),
-        MANAGE_SPEED            toInt(os.Getenv("MANAGE_SPEED")),
+        MIN_POD:                 toInt(os.Getenv("MIN_POD")),
+        MAX_POD:                 toInt(os.Getenv("MAX_POD")),
+        POD_INCREMENT:           toInt(os.Getenv("POD_INCREMENT")),
+        POD_DECREMENT:           toInt(os.Getenv("POD_DECREMENT")),
+        SCALE_UP_POLICY:         os.Getenv("SCALE_UP_POLICY"),
+        SCALE_DOWN_POLICY:       os.Getenv("SCALE_DOWN_POLICY"),
+        MONITOR_TYPE:            os.Getenv("MONITOR_TYPE"),
+        MONITOR_USERNAME:        os.Getenv("MONITOR_USERNAME"),
+        MONITOR_PASSWORD:        os.Getenv("MONITOR_PASSWORD"),
+        MONITOR_HOST:            os.Getenv("MONITOR_HOST"),
+        MONITOR_PORT:            toInt(os.Getenv("MONITOR_PORT")),
+        MONITOR_PATH:            os.Getenv("MONITOR_PATH"),
+        MONITOR_DB:              toInt(os.Getenv("MONITOR_PORT")),
+        MONITOR_QUEUE_NAME:      os.Getenv("MONITOR_QUEUE_NAME"),
+        MONITOR_PODS:            os.Getenv("MONITOR_PODS"),
+        MANAGE_SPEED:            toInt(os.Getenv("MANAGE_SPEED")),
     }
 }
 
@@ -150,11 +152,12 @@ func Run() {
     confLogger()  // logrus config
     envVars := getVars() // read K8S friendly environment variables
 
+    log.Info("conntection attempt to redis")
     redis := RedisQueue {
         Addr:     envVars.MONITOR_HOST,
         Password: "",
         DB:       envVars.MONITOR_DB,
     }
 
-    redis.isOverwhelmed()
+    redis.isOverwhelmed("random-queue")
 }
